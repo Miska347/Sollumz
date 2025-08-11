@@ -886,7 +886,9 @@ class SOLLUMZ_PT_AUTO_LOD_PANEL(bpy.types.Panel):
                  text="Reference Mesh")
         box.prop(context.scene, "sollumz_auto_lod_decimate_step")
         box.separator()
-        box.operator("sollumz.auto_lod", icon="MOD_DECIM")
+        row = box.row(align=True)
+        row.operator("sollumz.auto_lod", icon="MOD_DECIM", text="Active Only")
+        row.operator("sollumz.auto_lod_multi", icon="AUTOMERGE_ON", text="Per-Object")
 
 
 class SOLLUMZ_PT_EXTRACT_LODS_PANEL(bpy.types.Panel):
@@ -914,6 +916,29 @@ class SOLLUMZ_PT_EXTRACT_LODS_PANEL(bpy.types.Panel):
 
         box.operator("sollumz.extract_lods", icon="EXPORT")
 
+
+class SOLLUMZ_PT_DELETE_LODS_PANEL(bpy.types.Panel):
+    bl_label = "Delete LODs"
+    bl_idname = "SOLLUMZ_PT_DELETE_LODS_PANEL"
+    bl_category = "Sollumz Tools"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_options = {"HIDE_HEADER"}
+    bl_parent_id = SOLLUMZ_PT_LOD_TOOLS_PANEL.bl_idname
+
+    bl_order = 2
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+        layout.label(text="Delete LODs From Selection")
+        box = layout.box()
+        box.separator(factor=0.25)
+
+        box.prop(context.scene, "sollumz_delete_lods_levels")
+
+        box.separator()
+        box.operator("sollumz.delete_lods", icon="TRASH")
 
 class SOLLUMZ_PT_CABLE_TOOLS_PANEL(bpy.types.Panel):
     bl_label = "Cable Tools"

@@ -44,3 +44,23 @@ Follow the [installation instructions on our wiki](https://docs.sollumz.org/gett
 ### Supporters ❤️ ###
 - [GitBook](https://www.gitbook.com/)
 - dexyfex and the [CodeWalker](https://github.com/dexyfex/CodeWalker) team
+
+---
+## What's New (custom build)
+
+- LOD Tools: Delete LODs
+  - New operator: `sollumz.delete_lods` to remove selected LOD levels from all selected Drawable Model objects.
+  - UI: 3D Viewport Sidebar → Sollumz Tools → LOD Tools → Delete LODs.
+  - Property: `Scene.sollumz_delete_lods_levels` to pick which levels to delete.
+  - Removes LOD mesh references and deletes mesh datablocks if unused anywhere.
+
+- Auto LOD enhancements
+  - New operator: `sollumz.auto_lod_multi` (Generate LODs Per-Object).
+    - Processes all selected Drawable Models; for each, uses its own Very High LOD as the reference.
+    - Generates only the levels selected in `Scene.sollumz_auto_lod_levels` and applies decimation by `Scene.sollumz_auto_lod_decimate_step`.
+  - UI: Auto LOD now shows two buttons: “Active Only” (`sollumz.auto_lod`) and “Per-Object” (`sollumz.auto_lod_multi`).
+  - Behavior fix: The currently active view LOD mesh (e.g., High/Very High) is preserved unless that exact LOD level is selected for generation. Applies to both single-object and multi-object runs.
+
+Usage tips
+- Delete LODs: select one or more Drawable Models, choose levels, click Delete LODs.
+- Auto LOD Per-Object: select multiple Drawable Models, choose target levels and decimate step, click Per-Object. The Very High mesh of each object is used as the reference; High/Very High remain untouched unless selected.

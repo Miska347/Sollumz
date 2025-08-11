@@ -587,6 +587,14 @@ class SOLLUMZ_OT_auto_lod(bpy.types.Operator):
 
         previous_mode = aobj.mode
         previous_lod_level = obj_lods.active_lod_level
+        previous_lod_mesh = obj_lods.get_lod(previous_lod_level).mesh
+
+        # Isolate selection to avoid multi-object edit mode affecting other objects
+        orig_selection = list(context.selected_objects)
+        orig_active = context.view_layer.objects.active
+        bpy.ops.object.select_all(action="DESELECT")
+        aobj.select_set(True)
+        context.view_layer.objects.active = aobj
 
         for lod_level in lods:
             bpy.ops.object.mode_set(mode="OBJECT")  # make sure we are in object mode before switching LODs
@@ -603,9 +611,21 @@ class SOLLUMZ_OT_auto_lod(bpy.types.Operator):
             last_mesh = mesh
 
         bpy.ops.object.mode_set(mode="OBJECT")
+        # Restore the previously active LOD's mesh if that level wasn't selected
+        if previous_lod_level not in lods and previous_lod_mesh is not None:
+            prev_lod = obj_lods.get_lod(previous_lod_level)
+            if prev_lod.mesh is not previous_lod_mesh:
+                prev_lod.mesh = previous_lod_mesh
         obj_lods.active_lod_level = previous_lod_level
 
         bpy.ops.object.mode_set(mode=previous_mode)
+
+        # Restore original selection
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in orig_selection:
+            obj.select_set(True)
+        if orig_active is not None:
+            context.view_layer.objects.active = orig_active
 
         return {"FINISHED"}
 
@@ -615,6 +635,100 @@ class SOLLUMZ_OT_auto_lod(bpy.types.Operator):
     def get_selected_lods_sorted(self, context: Context) -> tuple[LODLevel]:
         return tuple(lod for lod in LODLevel if lod in context.scene.sollumz_auto_lod_levels)
 
+
+class SOLLUMZ_OT_auto_lod_multi(bpy.types.Operator):
+    bl_idname = "sollumz.auto_lod_multi"
+    bl_label = "Generate LODs (Per-Object)"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = (
+        "Generate LODs for each selected Drawable Model. For each object, use its own Very High LOD as the reference, "
+        "then decimate for the selected lower LOD levels."
+    )
+
+    @classmethod
+    def poll(self, context):
+        if not context.selected_objects:
+            return False
+        return any(
+            obj.type == "MESH" and obj.sollum_type == SollumType.DRAWABLE_MODEL
+            for obj in context.selected_objects
+        )
+
+    def execute(self, context: Context):
+        selected_model_objs = [
+            obj for obj in context.selected_objects
+            if obj.type == "MESH" and obj.sollum_type == SollumType.DRAWABLE_MODEL
+        ]
+
+        lod_levels = tuple(lod for lod in LODLevel if lod in context.scene.sollumz_auto_lod_levels)
+        if not lod_levels:
+            return {"CANCELLED"}
+
+        decimate_step = context.scene.sollumz_auto_lod_decimate_step
+
+        previous_active_obj = context.view_layer.objects.active
+        original_selection = list(context.selected_objects)
+
+        processed = 0
+        skipped = 0
+
+        for obj in selected_model_objs:
+            obj_lods: LODLevels = obj.sz_lods
+            ref_mesh = obj_lods.get_lod(LODLevel.VERYHIGH).mesh
+
+            if ref_mesh is None:
+                skipped += 1
+                continue
+
+            # Work on this object
+            bpy.ops.object.select_all(action="DESELECT")
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+
+            previous_mode = obj.mode
+            previous_lod_level = obj_lods.active_lod_level
+            previous_lod_mesh = obj_lods.get_lod(previous_lod_level).mesh
+
+            last_mesh = ref_mesh
+
+            for lod_level in lod_levels:
+                if lod_level == LODLevel.VERYHIGH:
+                    # Avoid modifying the reference mesh via decimation
+                    continue
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                mesh = last_mesh.copy()
+                mesh.name = f"{obj.name}.{SOLLUMZ_UI_NAMES[lod_level].lower()}"
+
+                obj_lods.get_lod(lod_level).mesh = mesh
+                obj_lods.active_lod_level = lod_level
+
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.decimate(ratio=1.0 - decimate_step)
+
+                last_mesh = mesh
+
+            bpy.ops.object.mode_set(mode="OBJECT")
+            # Restore the previously active LOD's mesh if that level wasn't selected
+            if previous_lod_level not in lod_levels and previous_lod_mesh is not None:
+                prev_lod = obj_lods.get_lod(previous_lod_level)
+                if prev_lod.mesh is not previous_lod_mesh:
+                    prev_lod.mesh = previous_lod_mesh
+            obj_lods.active_lod_level = previous_lod_level
+            bpy.ops.object.mode_set(mode=previous_mode)
+
+            processed += 1
+
+        # Restore previous active object
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in original_selection:
+            obj.select_set(True)
+        if previous_active_obj is not None:
+            context.view_layer.objects.active = previous_active_obj
+
+        self.report({"INFO"}, f"Generated LODs for {processed} object(s){' (skipped ' + str(skipped) + ' without Very High LOD)' if skipped else ''}.")
+        return {"FINISHED"}
 
 class SOLLUMZ_OT_extract_lods(bpy.types.Operator):
     bl_idname = "sollumz.extract_lods"
@@ -688,6 +802,71 @@ class SOLLUMZ_OT_uv_maps_rename_by_order(bpy.types.Operator):
 
         return {"FINISHED"}
 
+
+class SOLLUMZ_OT_delete_lods(bpy.types.Operator):
+    bl_idname = "sollumz.delete_lods"
+    bl_label = "Delete LODs"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Delete selected LOD meshes from all selected Drawable Models"
+
+    @classmethod
+    def poll(self, context):
+        return context.active_object is not None and len(context.selected_objects) > 0
+
+    def execute(self, context: Context):
+        selected_model_objs = [
+            obj for obj in context.selected_objects
+            if obj.type == "MESH" and obj.sollum_type == SollumType.DRAWABLE_MODEL
+        ]
+
+        if not selected_model_objs:
+            self.report({"INFO"}, "No Drawable Model objects selected!")
+            return {"CANCELLED"}
+
+        levels_to_delete = tuple(context.scene.sollumz_delete_lods_levels)
+        if not levels_to_delete:
+            return {"CANCELLED"}
+
+        deleted_mesh_refs = 0
+
+        for obj in selected_model_objs:
+            obj_lods: LODLevels = obj.sz_lods
+
+            # If active LOD is being deleted, switch to a fallback first so the mesh can be released
+            if obj_lods.active_lod_level in levels_to_delete:
+                fallback_level = None
+                for lod_level in LODLevel:
+                    if lod_level in levels_to_delete:
+                        continue
+                    if obj_lods.get_lod(lod_level).mesh is not None:
+                        fallback_level = lod_level
+                        break
+
+                if fallback_level is not None:
+                    # Ensure object mode before switching LODs
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                    obj_lods.active_lod_level = fallback_level
+
+            # Delete requested LOD meshes
+            for lod_level in levels_to_delete:
+                lod = obj_lods.get_lod(lod_level)
+                mesh = lod.mesh
+                if mesh is None:
+                    continue
+
+                # Clear mesh from this LOD
+                lod.mesh = None
+
+                # Delete the mesh datablock if no longer used anywhere
+                if mesh.users == 0:
+                    bpy.data.meshes.remove(mesh)
+                deleted_mesh_refs += 1
+
+            # Ensure a valid active LOD, if any remain
+            obj_lods.set_highest_lod_active()
+
+        self.report({"INFO"}, f"Deleted LODs from {len(selected_model_objs)} object(s).")
+        return {"FINISHED"}
 
 class SOLLUMZ_OT_uv_maps_add_missing(bpy.types.Operator):
     """Add the missing UV maps used by the Sollumz shaders of the mesh"""

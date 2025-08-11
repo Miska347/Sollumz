@@ -745,6 +745,9 @@ def register():
     bpy.types.Scene.sollumz_auto_lod_decimate_step = bpy.props.FloatProperty(
         name="Decimate Step", min=0.0, max=0.99, default=0.6)
 
+    # LOD deletion selection for Delete LODs tool
+    bpy.types.Scene.sollumz_delete_lods_levels = lod_level_enum_flag_prop_factory()
+
     bpy.types.WindowManager.sz_light_preset_index = bpy.props.IntProperty(name="Light Preset Index")
     bpy.types.WindowManager.sz_light_presets = bpy.props.CollectionProperty(type=PresetEntry, name="Light Presets")
 
@@ -898,6 +901,7 @@ def unregister():
     del bpy.types.Scene.sollumz_auto_lod_ref_mesh
     del bpy.types.Scene.sollumz_auto_lod_levels
     del bpy.types.Scene.sollumz_auto_lod_decimate_step
+    del bpy.types.Scene.sollumz_delete_lods_levels
     del bpy.types.Scene.sollumz_extract_lods_levels
     del bpy.types.Scene.sollumz_extract_lods_parent_type
 
