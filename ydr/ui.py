@@ -940,6 +940,33 @@ class SOLLUMZ_PT_DELETE_LODS_PANEL(bpy.types.Panel):
         box.separator()
         box.operator("sollumz.delete_lods", icon="TRASH")
 
+
+class SOLLUMZ_PT_LOD_MATERIALS_PANEL(bpy.types.Panel):
+    bl_label = "LOD Materials"
+    bl_idname = "SOLLUMZ_PT_LOD_MATERIALS_PANEL"
+    bl_category = "Sollumz Tools"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_options = {"HIDE_HEADER"}
+    bl_parent_id = SOLLUMZ_PT_LOD_TOOLS_PANEL.bl_idname
+
+    bl_order = 3
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+        layout.label(text="Create _low Materials")
+        box = layout.box()
+        box.separator(factor=0.25)
+
+        box.prop(context.scene, "sollumz_lodtools_source_material", text="Source Material")
+        box.prop(context.scene, "sollumz_lodtools_target_lod", text="LOD Level")
+        box.prop(context.scene, "sollumz_lodtools_suffix", text="Suffix")
+
+        box.separator()
+
+        box.operator("sollumz.create_low_materials", icon="DUPLICATE")
+
 class SOLLUMZ_PT_CABLE_TOOLS_PANEL(bpy.types.Panel):
     bl_label = "Cable Tools"
     bl_idname = "SOLLUMZ_PT_CABLE_TOOLS_PANEL"

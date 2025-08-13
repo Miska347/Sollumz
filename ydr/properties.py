@@ -18,7 +18,7 @@ from ..tools.blenderhelper import lod_level_enum_flag_prop_factory
 from ..sollumz_helper import find_sollumz_parent
 from ..cwxml.light_preset import LightPresetsFile
 from ..cwxml.shader_preset import ShaderPresetsFile
-from ..sollumz_properties import SOLLUMZ_UI_NAMES, items_from_enums, LODLevel, SollumType, LightType, FlagPropertyGroup, TimeFlagsMixin
+from ..sollumz_properties import SOLLUMZ_UI_NAMES, items_from_enums, LODLevel, LODLevelEnumItems, SollumType, LightType, FlagPropertyGroup, TimeFlagsMixin
 from ..ydr.shader_materials import shadermats, shadermats_by_filename
 from .render_bucket import RenderBucket, RenderBucketEnumItems
 from .light_flashiness import Flashiness, LightFlashinessEnumItems
@@ -761,6 +761,16 @@ def register():
          "Collection", "Parent to a Collection")
     ), default=0)
 
+    # LOD Material Tools
+    bpy.types.Scene.sollumz_lodtools_source_material = bpy.props.PointerProperty(
+        type=bpy.types.Material, name="Source Material",
+        description="Material to duplicate and replace with its low variant on the selected LOD level across all models")
+    bpy.types.Scene.sollumz_lodtools_target_lod = bpy.props.EnumProperty(
+        name="LOD Level", items=LODLevelEnumItems, default=LODLevel.LOW)
+    bpy.types.Scene.sollumz_lodtools_suffix = bpy.props.StringProperty(
+        name="Suffix", description="Suffix to append before any bracket tag in the material name",
+        default="_low")
+
     from .cable import CableAttr
     bpy.types.WindowManager.sz_ui_cable_radius_visualize = bpy.props.BoolProperty(
         name="Show Radius", description="Display the cable radius values on the 3D Viewport",
@@ -904,6 +914,11 @@ def unregister():
     del bpy.types.Scene.sollumz_delete_lods_levels
     del bpy.types.Scene.sollumz_extract_lods_levels
     del bpy.types.Scene.sollumz_extract_lods_parent_type
+
+    # LOD Material Tools
+    del bpy.types.Scene.sollumz_lodtools_source_material
+    del bpy.types.Scene.sollumz_lodtools_target_lod
+    del bpy.types.Scene.sollumz_lodtools_suffix
 
     del bpy.types.WindowManager.sz_ui_cable_radius_visualize
     del bpy.types.WindowManager.sz_ui_cable_radius

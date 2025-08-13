@@ -61,6 +61,16 @@ Follow the [installation instructions on our wiki](https://docs.sollumz.org/gett
   - UI: Auto LOD now shows two buttons: “Active Only” (`sollumz.auto_lod`) and “Per-Object” (`sollumz.auto_lod_multi`).
   - Behavior fix: The currently active view LOD mesh (e.g., High/Very High) is preserved unless that exact LOD level is selected for generation. Applies to both single-object and multi-object runs.
 
+- LOD Tools: LOD Materials (_low material creation)
+  - New operator: `sollumz.create_low_materials` to duplicate a chosen material to a low variant and replace it on a chosen LOD level across all models using the original.
+  - UI: 3D Viewport Sidebar → Sollumz Tools → Drawables → LOD Tools → LOD Materials.
+  - Properties:
+    - `Scene.sollumz_lodtools_source_material`: source material to duplicate (e.g., `vehicle_generic_smallspecmap [PRIMARY]`).
+    - `Scene.sollumz_lodtools_target_lod`: LOD level to modify (default: Low).
+    - `Scene.sollumz_lodtools_suffix`: name suffix inserted before any trailing bracket tag (default: `_low`).
+  - Naming rule: preserves bracket tags. Example: `vehicle_generic_smallspecmap [PRIMARY]` → `vehicle_generic_smallspecmap_low [PRIMARY]`.
+
 Usage tips
 - Delete LODs: select one or more Drawable Models, choose levels, click Delete LODs.
 - Auto LOD Per-Object: select multiple Drawable Models, choose target levels and decimate step, click Per-Object. The Very High mesh of each object is used as the reference; High/Very High remain untouched unless selected.
+ - LOD Materials: choose the source material, pick target LOD and suffix, then click “Create _low Materials”. Only meshes at the selected LOD that use the source material will be updated.

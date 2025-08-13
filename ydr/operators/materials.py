@@ -9,7 +9,7 @@ from bpy.props import (
 )
 from ...cwxml.shader_preset import ShaderPreset, ShaderPresetParam
 from ...sollumz_helper import SOLLUMZ_OT_base
-from ...sollumz_properties import MaterialType
+from ...sollumz_properties import MaterialType, LODLevel
 from ...ydr.shader_materials import create_shader, create_tinted_shader_graph, is_tint_material, shadermats
 from ...tools.drawablehelper import MaterialConverter
 from ...tools.blenderhelper import tag_redraw
@@ -22,6 +22,7 @@ from ...tools.meshhelper import (
 )
 from ...shared.shader_nodes import SzShaderNodeParameter
 from ...cwxml.shader import ShaderParameterFloatVectorDef, ShaderParameterTextureDef, ShaderManager
+from ...lods import LODLevels
 
 
 def shader_preset_from_material(material: Material) -> ShaderPreset:
@@ -599,4 +600,89 @@ class SOLLUMZ_OT_update_tinted_shader_graph(SOLLUMZ_OT_base, bpy.types.Operator)
         for obj in objs:
             create_tinted_shader_graph(obj)
 
+        return True
+
+
+class SOLLUMZ_OT_create_low_materials(SOLLUMZ_OT_base, bpy.types.Operator):
+    """Duplicate a material to a low variant and replace it on the chosen LOD across all relevant models"""
+    bl_idname = "sollumz.create_low_materials"
+    bl_label = "Create _low Materials"
+    bl_action = "Create _low Materials"
+
+    @classmethod
+    def poll(cls, context):
+        src_mat = getattr(context.scene, "sollumz_lodtools_source_material", None)
+        return src_mat is not None and isinstance(src_mat, bpy.types.Material)
+
+    def _make_low_name(self, name: str, suffix: str) -> str:
+        # Preserve bracket tag like " [PRIMARY]" at end if present
+        tag = ""
+        base = name
+        if name.endswith("]") and "[" in name:
+            lb = name.rfind("[")
+            tag = name[lb:]
+            base = name[:lb].rstrip()
+        # Avoid duplicate suffix
+        if base.endswith(suffix):
+            low_base = base
+        else:
+            low_base = f"{base}{suffix}"
+        return f"{low_base} {tag}".rstrip()
+
+    def _ensure_low_material(self, src: bpy.types.Material, suffix: str) -> bpy.types.Material:
+        low_name = self._make_low_name(src.name, suffix)
+        existing = bpy.data.materials.get(low_name)
+        if existing:
+            return existing
+        # Duplicate material data-block
+        low_mat = src.copy()
+        low_mat.name = low_name
+        return low_mat
+
+    def _replace_on_mesh_lod(self, mesh: bpy.types.Mesh, src_mat: bpy.types.Material, dst_mat: bpy.types.Material):
+        # Replace in mesh material slots
+        for i, mat in enumerate(mesh.materials):
+            if mat == src_mat:
+                mesh.materials[i] = dst_mat
+
+    def run(self, context):
+        scene = context.scene
+        src_mat: bpy.types.Material = scene.sollumz_lodtools_source_material
+        if src_mat is None:
+            self.warning("Select a source material.")
+            return False
+
+        try:
+            target_lod: LODLevel = scene.sollumz_lodtools_target_lod
+        except Exception:
+            # If property not set properly
+            target_lod = LODLevel.LOW
+
+        suffix = scene.sollumz_lodtools_suffix or "_low"
+
+        # Create/get low version once
+        low_mat = self._ensure_low_material(src_mat, suffix)
+
+        num_replaced = 0
+        # Iterate through all objects in the file to find meshes with LODs that reference src_mat
+        for obj in bpy.data.objects:
+            if obj.type != "MESH":
+                continue
+            # Only consider Sollumz Drawable Models which have LODs
+            lods: LODLevels | None = getattr(obj, "sz_lods", None)
+            if lods is None:
+                continue
+            lod = lods.get_lod(target_lod)
+            lod_mesh = lod.mesh
+            if lod_mesh is None:
+                continue
+            # Replace only if the source material is used in this LOD mesh
+            uses_src = any(m == src_mat for m in lod_mesh.materials)
+            if not uses_src:
+                continue
+            self._replace_on_mesh_lod(lod_mesh, src_mat, low_mat)
+            num_replaced += 1
+
+        tag_redraw(context, space_type="VIEW_3D", region_type="UI")
+        self.message(f"Created/reused '{low_mat.name}' and replaced on {num_replaced} LOD mesh(es).")
         return True
